@@ -18,12 +18,24 @@
   )
 )
 
-;; flip which team wins, winning team gets 3 points in its position in the vector
+;; calculate which team wins, winning team gets 3 points in its position in the vector
 (define (play-match team-vector-1 team-vector-2)
-  (if (flip (/ (team-strength team-vector-1) (+ (team-strength team-vector-1) (team-strength team-vector-2))))
-    (map (lambda (x) (if (> x 0) 3 0)) (map (lambda (y) (strength y)) team-vector-1))
-    (map (lambda (x) (if (> x 0) 3 0)) (map (lambda (y) (strength y)) team-vector-2))
-))
+  ; goals for each team modeled by Poisson distribution
+  (let ((team1-goals (poisson (team-strength team-vector-1))) (team2-goals (poisson (team-strength team-vector-2))))
+    (if (= team1-goals team2-goals)
+      ; draw: 1 point for each team (create each team score vector, then add vectors)
+      (add-lists
+        (map (lambda (x) (if (> x 0) 1 0)) (map (lambda (y) (strength y)) team-vector-1))
+        (map (lambda (x) (if (> x 0) 1 0)) (map (lambda (y) (strength y)) team-vector-2))
+      )
+      (if (> team1-goals team2-goals)
+        ; win: 3 points for winning team
+        (map (lambda (x) (if (> x 0) 3 0)) (map (lambda (y) (strength y)) team-vector-1))
+        (map (lambda (x) (if (> x 0) 3 0)) (map (lambda (y) (strength y)) team-vector-2))
+      )
+    )
+  )
+)
 
 ;; recursive function: each list element is a match-up of two team vectors
 (define (play-tournament tournament)
@@ -53,6 +65,7 @@
   )
 )
 
+;; create a team vector for each team in teams, for a total of number teams - vector gives each team its own index
 (define (create-team-vectors teams number)
   (if (= (length teams) 1)
     (list (update-list (make-list number 'none) (- number 1) (first teams)))
@@ -60,10 +73,7 @@
   )
 )
 
-;(let ((teams (list (list 'ger 'none 'none 'none) (list 'none 'ita 'none 'none) (list 'none 'none 'arg 'none) (list 'none 'none 'none 'jpn))))
-;  (play-tournament (create-tournament teams))
-;)
-
+;; create list of all team vectors, create all games in the tournament from the team vector list, then play the tournament
 (let ((teams (create-team-vectors (list 'ger 'fra 'arg 'jpn) 4)))
   (play-tournament (create-tournament teams))
 )
