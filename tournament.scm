@@ -82,5 +82,18 @@
 (map (lambda (x) (play-match (first (first x)) (second (first x)) (first (second x)) (second(second x))))
   (combine-with-index (create-tournament (create-team-vectors (list 'ger 'fra 'arg 'jpn) 4)) 4))
 
+;; plays elimination rounds across all teams in the list, pitting half list vs. half list
+(define (play-ko teams)
+  ; check if we are down to two teams
+  (if (= (length teams) 2)
+    ; play between the two teams, recursion is over
+    (play-match (first teams) (second teams))
+    ; split list in half, play elimination rounds on each sub-list, then let the winners play
+    (let ((num-teams (/ (length teams) 2)))
+      (play-match (play-ko (drop teams num-teams)) (play-ko (take teams num-teams)))
+    )
+  )
+)
+
 ;))
 ;(density samples "Germany Strength" true)
