@@ -1,6 +1,3 @@
-;(define samples
-;  (mh-query 1000 100
-
 ;; set the memoized core strength of each team, regardless of match played
 (define strength-core (mem (lambda (team)
   (abs (gaussian 2.0 1.0)))))
@@ -79,8 +76,27 @@
     (list match index))
   (map combine (triangle 1 group-size) matches))
 
-(map (lambda (x) (play-match (first (first x)) (second (first x)) (first (second x)) (second(second x))))
-  (combine-with-index (create-tournament (create-team-vectors (list 'ger 'fra 'arg 'jpn) 4)) 4))
+(define (play-league teams num-teams)
+  ; merge teams with scores
+  (map list
+    ; the list of teams
+    teams
+    ; accumulate each team's individual match scores
+    (foldl (lambda (x y) (map + x y))
+      ; initialize scores to 0 for all teams
+      (make-list num-teams 0)
+      ; play all matches in the list: first team w/ first team's game index vs. second team w/ second team's game index
+      (map (lambda (x) (play-match (first (first x)) (second (first x)) (first (second x)) (second(second x))))
+        ; augment the match list with each team's game index
+        (combine-with-index
+          ; create the full list of matches
+          (create-tournament (create-team-vectors teams num-teams))
+          num-teams
+        )
+      )
+    )
+  )
+)
 
 ;; plays elimination rounds across all teams in the list, pitting half list vs. half list
 (define (play-ko teams)
@@ -92,6 +108,16 @@
     (let ((num-teams (/ (length teams) 2)))
       (play-match (play-ko (drop teams num-teams)) (play-ko (take teams num-teams)))
     )
+  )
+)
+
+(let ((teams-list (list 'ger 'fra 'arg 'jpn)))
+  ; sort teams by final league score
+  (sort
+    ; play the league and get team-score pairs back
+    (play-league teams-list (length teams-list))
+    ; sort the list by the second element in each pair, which is the score
+    (lambda(a b) (if (> (second a) (second b)) -1 1))
   )
 )
 
