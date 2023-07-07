@@ -1,2 +1,2 @@
 # gpt-tournament
-Simulation of a tournament in the probabilistic programming language Church
+Simulation of a tournament in the probabilistic programming languages Church and WebPPL
