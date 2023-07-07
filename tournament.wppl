@@ -44,29 +44,19 @@ var playMatch = function (teamVector1, teamVector2, match1, match2) {
   }
 }
 
-var combineElementWithList = function(element, lst) {
-  return map(function (x) { return [element, x]; }, lst);
-}
-
-var createTournament = function(teams) {
-  return teams.length === 2 ?
-    [[teams[0], teams[1]]] :
-    _.concat(
-      combineElementWithList(teams[0], _.tail(teams)),
-      createTournament(_.tail(teams))
-    );
-}
-
+// creates a score vector for each team: team has designated index in a list, all other list elements are 'none'
 var createTeamVectors = function(teams) {
   var createNones = function(x) { mapN(function() { return "none"; }, x); };
   var createVector = function(x,y) { return createNones(y).concat(x).concat(createNones(teams.length - y - 1)); };
   return map2(function(x,y) {return createVector(x,y); }, teams, _.range(0, teams.length));
 }
 
+// appends a single element to all elements in a list
 var combineElementWithList = function(element, lst) {
   return map(function (x) { return [element, x]; }, lst);
 }
 
+// set up all the matches in a league: one match each between all teams
 var createTournament = function(teams) {
   return teams.length === 2 ?
     [[teams[0], teams[1]]] :
@@ -87,7 +77,9 @@ var combineWithIndex = function(matches, groupSize) {
   return zip(matches, triangle(1, groupSize));
 }
 
+// play league: one match between all teams each
 var playLeague = function(teams) {
+  // zip the team score vectors with their respective teams
   var teamsWithScores = zip(
     teams,
     reduce(
@@ -105,7 +97,24 @@ var playLeague = function(teams) {
         combineWithIndex(createTournament(createTeamVectors(teams)), teams.length))
     )
   );
+
+  // sort team-score vector by points
   return sort(teamsWithScores, gt, function(x) { return _.last(x); });
+}
+
+// dummy function for ko matches (only one winner)
+var playMatchKO = function(team1, team2) {
+  return flip() ? team1 : team2;
+}
+
+// play ko round in a tournament
+var playKO = function(teams) {
+  // check if we are down to two teams
+  return teams.length === 2 ?
+    // play between the two teams, recursion is over
+    playMatchKO(teams[0], teams[1], 1, 1) :
+    // split list in half, play elimination rounds on each sub-list, then let the winners play
+    playMatchKO(playKO(teams.slice(0, teams.length / 2)), playKO(teams.slice(teams.length / 2, teams.length)));
 }
 
 var teams = ['ger', 'jpn', 'arg', 'ita'];
