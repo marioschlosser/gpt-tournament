@@ -1,0 +1,112 @@
+// set the memoized core strength of each team, regardless of match played
+var strengthCore = mem(function (team) {
+  return Math.abs(gaussian(2.0, 1.0));
+});
+
+// set the memoized strength of each team for a specific match index, modifying the core strength
+var strengthMatch = mem(function (team, match) {
+  return team === 'none' ?
+    0 :
+    strengthCore(team) + gaussian(0.5, 0.2);
+});
+
+// to evaluate the strength of a team vector, get the match strength of the team represented by the vector
+var teamStrength = function (teamVector, match) {
+  return sum(
+    map(function (x) { return strengthMatch(x, match); }, teamVector)
+  );
+}
+
+// calculate which team wins, winning/drawing teams get points in their position in the vector
+var playMatch = function (teamVector1, teamVector2, match1, match2) {
+  var team1Goals = poisson(teamStrength(teamVector1, match1));
+  var team2Goals = poisson(teamStrength(teamVector2, match2));
+  
+  var scoreMap = function(strength, points) {
+    return map(function (x) { return x > 0 ? points : 0; }, strength);
+  }
+  
+  var team1Strength = map(function (y) { return strengthMatch(y, 1); }, teamVector1);
+  var team2Strength = map(function (y) { return strengthMatch(y, 1); }, teamVector2);
+  
+  if (team1Goals === team2Goals) {
+    // draw: 1 point for each team (create each team score vector, then add vectors)
+    return map2(
+      function (a, b) { return a + b; },
+      scoreMap(team1Strength, 1),
+      scoreMap(team2Strength, 1)
+    );
+  } else if (team1Goals > team2Goals) {
+    // win: 3 points for winning team
+    return scoreMap(team1Strength, 3);
+  } else {
+    return scoreMap(team2Strength, 3);
+  }
+}
+
+var combineElementWithList = function(element, lst) {
+  return map(function (x) { return [element, x]; }, lst);
+}
+
+var createTournament = function(teams) {
+  return teams.length === 2 ?
+    [[teams[0], teams[1]]] :
+    _.concat(
+      combineElementWithList(teams[0], _.tail(teams)),
+      createTournament(_.tail(teams))
+    );
+}
+
+var createTeamVectors = function(teams) {
+  var createNones = function(x) { mapN(function() { return "none"; }, x); };
+  var createVector = function(x,y) { return createNones(y).concat(x).concat(createNones(teams.length - y - 1)); };
+  return map2(function(x,y) {return createVector(x,y); }, teams, _.range(0, teams.length));
+}
+
+var combineElementWithList = function(element, lst) {
+  return map(function (x) { return [element, x]; }, lst);
+}
+
+var createTournament = function(teams) {
+  return teams.length === 2 ?
+    [[teams[0], teams[1]]] :
+    combineElementWithList(teams[0], _.tail(teams)).concat(
+      createTournament(_.tail(teams))
+    );
+}
+
+// create a triangle: all numbers from n to m, once; triangle(1,4) = [[1,1], [2,1], [3,1], [2,2], [3,2], [3,3]]
+var triangle = function(n, m) {
+  return n === m - 1 ?
+    [[n, m - 1]] :
+    map(function (x) { return [x, n]; }, _.range(n, m)).concat(triangle(n + 1, m))
+}
+
+// combines the triangle of matches with the triangle of match indexes
+var combineWithIndex = function(matches, groupSize) {
+  return zip(matches, triangle(1, groupSize));
+}
+
+var playLeague = function(teams) {
+  var teamsWithScores = zip(
+    teams,
+    reduce(
+      // add up the points in each team's match vector
+      function(x,y) {return map2(function(i,j) { return i + j;}, x, y); },
+      // start with 0 points for all teams
+      repeat(teams.length, function() {return 0;}),
+      // go through the list of matches and play all of them
+      map(
+        // here is the match play function
+        function (x) {
+          return playMatch(_.head(_.head(x)), _.last(_.head(x)), _.head(_.last(x)), _.last(_.last(x)));
+        },
+        // here we create the full list of matches
+        combineWithIndex(createTournament(createTeamVectors(teams)), teams.length))
+    )
+  );
+  return sort(teamsWithScores, gt, function(x) { return _.last(x); });
+}
+
+var teams = ['ger', 'jpn', 'arg', 'ita'];
+playLeague(teams);
