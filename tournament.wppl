@@ -118,4 +118,18 @@ var playKO = function(teams) {
 }
 
 var teams = ['ger', 'jpn', 'arg', 'ita'];
-playLeague(teams);
+// this tests the league
+//playLeague(teams);
+
+// this samples tournaments
+var cup = function () {
+  var results = playLeague(teams);
+  // set conditions so that Germany wins with 9 points
+  condition(results[0][0] == 'ger');
+  condition(results[0][1] == 9);
+  return strengthCore('ger');
+};
+
+var dist = Infer({method: 'MCMC', kernel: 'MH', samples: 25000}, cup);
+print('Expected Strength GER: ' + expectation(dist));
+viz(dist);
