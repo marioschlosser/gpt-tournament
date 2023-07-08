@@ -19,8 +19,11 @@ var teamStrength = function (teamVector, match) {
 
 // calculate which team wins, winning/drawing teams get points in their position in the vector
 var playMatch = function (teamVector1, teamVector2, match1, match2) {
-  var team1Goals = poisson(teamStrength(teamVector1, match1));
-  var team2Goals = poisson(teamStrength(teamVector2, match2));
+  var team1Strength = Math.min(Math.max(teamStrength(teamVector1, match1),0),10);
+  var team2Strength = Math.min(Math.max(teamStrength(teamVector2, match2),0),10);
+  
+  var team1Goals = poisson({mu: team1Strength});
+  var team2Goals = poisson({mu: team2Strength});
   
   var scoreMap = function(strength, points) {
     return map(function (x) { return x > 0 ? points : 0; }, strength);
@@ -44,19 +47,29 @@ var playMatch = function (teamVector1, teamVector2, match1, match2) {
   }
 }
 
-// creates a score vector for each team: team has designated index in a list, all other list elements are 'none'
+var combineElementWithList = function(element, lst) {
+  return map(function (x) { return [element, x]; }, lst);
+}
+
+var createTournament = function(teams) {
+  return teams.length === 2 ?
+    [[teams[0], teams[1]]] :
+    _.concat(
+      combineElementWithList(teams[0], _.tail(teams)),
+      createTournament(_.tail(teams))
+    );
+}
+
 var createTeamVectors = function(teams) {
   var createNones = function(x) { mapN(function() { return "none"; }, x); };
   var createVector = function(x,y) { return createNones(y).concat(x).concat(createNones(teams.length - y - 1)); };
   return map2(function(x,y) {return createVector(x,y); }, teams, _.range(0, teams.length));
 }
 
-// appends a single element to all elements in a list
 var combineElementWithList = function(element, lst) {
   return map(function (x) { return [element, x]; }, lst);
 }
 
-// set up all the matches in a league: one match each between all teams
 var createTournament = function(teams) {
   return teams.length === 2 ?
     [[teams[0], teams[1]]] :
@@ -72,39 +85,50 @@ var triangle = function(n, m) {
     map(function (x) { return [x, n]; }, _.range(n, m)).concat(triangle(n + 1, m))
 }
 
-// combines the triangle of matches with the triangle of match indexes
+// combines the triangle of matches with the triangle of match indexes (first match is 1)
 var combineWithIndex = function(matches, groupSize) {
   return zip(matches, triangle(1, groupSize));
 }
 
-// play league: one match between all teams each
 var playLeague = function(teams) {
-  // zip the team score vectors with their respective teams
-  var teamsWithScores = zip(
-    teams,
-    reduce(
-      // add up the points in each team's match vector
-      function(x,y) {return map2(function(i,j) { return i + j;}, x, y); },
-      // start with 0 points for all teams
-      repeat(teams.length, function() {return 0;}),
-      // go through the list of matches and play all of them
+  // calculate the results from all matches
+  var results = 
       map(
         // here is the match play function
         function (x) {
           return playMatch(_.head(_.head(x)), _.last(_.head(x)), _.head(_.last(x)), _.last(_.last(x)));
         },
         // here we create the full list of matches
-        combineWithIndex(createTournament(createTeamVectors(teams)), teams.length))
+        combineWithIndex(createTournament(teams), teams.length));
+
+  // accumulate scores and merge in team names
+  var teamsWithScores = zip(
+    teams,
+    reduce(
+      // add up the points in each team's match vector
+      function(x,y) { return map2(function(i,j) { return i + j; }, x, y); },
+      // start with 0 points for all teams
+      repeat(teams.length, function() {return 0;}),
+      // go through the list of matches and play all of them
+      results
     )
   );
-
-  // sort team-score vector by points
+  
+  // return sorted scores
   return sort(teamsWithScores, gt, function(x) { return _.last(x); });
+}
+
+// in a list of lists, reverses every other list
+var reverseEveryOther = function(items) {
+  return mapIndexed(function(x,y) { x%2 == 0 ? y : _.reverse(y); }, items);
 }
 
 // dummy function for ko matches (only one winner)
 var playMatchKO = function(team1, team2) {
-  return flip() ? team1 : team2;
+  var team1Strength = teamStrength(team1, 1);
+  var team2Strength = teamStrength(team2, 1);
+  
+  return flip(Math.min(team1Strength / team2Strength, 1)) ? team1 : team2;
 }
 
 // play ko round in a tournament
@@ -117,19 +141,50 @@ var playKO = function(teams) {
     playMatchKO(playKO(teams.slice(0, teams.length / 2)), playKO(teams.slice(teams.length / 2, teams.length)));
 }
 
-var teams = ['ger', 'jpn', 'arg', 'ita'];
-// this tests the league
-//playLeague(teams);
+// extracts the team from a team vector
+var teamFromVector = function(vector) {
+  return reduce(function(x,y) { x == 'none' ? y : y.concat(x); }, '', vector);
+}
 
-// this samples tournaments
+// set up the groups for the tournament
+var group_a = ['Qatar','Ecuador','Senegal','Netherlands'];
+var group_b = ['England','Iran','USA','Wales'];
+var group_c = ['Argentina','Saudi Arabia','Mexico','Poland'];
+var group_d = ['France','Australia','Denmark','Tunisia'];
+var group_e = ['Spain','Costa Rica','Germany','Japan'];
+var group_f = ['Belgium','Canada','Morocco','Croatia'];
+var group_g = ['Brazil','Serbia','Switzerland','Cameroon'];
+var group_h = ['Portugal','Ghana','Uruguay','South Korea'];
+
+// list of all the groups
+var groups = [group_a, group_b, group_c, group_d, group_e, group_f, group_g, group_h];
+
+// set up team vectors for all groups
+var groupVectors = map(function (x) { return createTeamVectors(x); }, groups);
+
 var cup = function () {
-  var results = playLeague(teams);
-  // set conditions so that Germany wins with 9 points
-  condition(results[0][0] == 'ger');
-  condition(results[0][1] == 9);
-  return strengthCore('ger');
+  // Germany has a great third match
+  //condition(strengthCore('t03') >= 3);
+  
+  // play all groups in the tournament
+  var groupScores = map(function (x) { return playLeague(x); }, groupVectors);
+
+  // sort out top winners in each group
+  var groupWinners = map(function (x) { return x.slice(0,2); }, groupScores);
+
+  // group firsts play against group seconds, so reverse every other group
+  var teamsKO = map(function(x) { return x[0]; }, _.flatten(reverseEveryOther(groupWinners)));
+
+  // play elimination rounds
+  var winner = playKO(teamsKO);
+
+  // watch: winning team
+  //return teamFromVector(winner);
+  
+  // watch: core strength of one team
+  condition(teamFromVector(winner) == 'Germany');
+  return strengthCore('Germany');
 };
 
-var dist = Infer({method: 'MCMC', kernel: 'MH', samples: 25000}, cup);
-print('Expected Strength GER: ' + expectation(dist));
+var dist = Infer({method: 'MCMC', kernel: 'MH', samples: 10000}, function() { return cup(); });
 viz(dist);
