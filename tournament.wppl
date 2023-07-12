@@ -17,47 +17,47 @@ var teamStrength = function (teamVector, match) {
   );
 }
 
+var scoreMatch = function (team1Strength, team2Strength) {
+  var team1Goals = poisson({mu: team1Strength});
+  var team2Goals = poisson({mu: team2Strength});
+  
+  return [team1Goals, team2Goals];
+}
+
 // calculate which team wins, winning/drawing teams get points in their position in the vector
 var playMatch = function (teamVector1, teamVector2, match1, match2) {
   var team1Strength = Math.min(Math.max(teamStrength(teamVector1, match1),0),10);
   var team2Strength = Math.min(Math.max(teamStrength(teamVector2, match2),0),10);
   
-  var team1Goals = poisson({mu: team1Strength});
-  var team2Goals = poisson({mu: team2Strength});
+  // score the match
+  var goals = scoreMatch(team1Strength, team2Strength);
+  var team1Goals = goals[0];
+  var team2Goals = goals[1];
   
   var scoreMap = function(strength, points) {
     return map(function (x) { return x > 0 ? points : 0; }, strength);
   }
   
-  var team1Strength = map(function (y) { return strengthMatch(y, 1); }, teamVector1);
-  var team2Strength = map(function (y) { return strengthMatch(y, 1); }, teamVector2);
+  var team1Index = map(function (y) { return strengthMatch(y, 1); }, teamVector1);
+  var team2Index = map(function (y) { return strengthMatch(y, 1); }, teamVector2);
   
   if (team1Goals === team2Goals) {
     // draw: 1 point for each team (create each team score vector, then add vectors)
     return map2(
       function (a, b) { return a + b; },
-      scoreMap(team1Strength, 1),
-      scoreMap(team2Strength, 1)
+      scoreMap(team1Index, 1),
+      scoreMap(team2Index, 1)
     );
   } else if (team1Goals > team2Goals) {
     // win: 3 points for winning team
-    return scoreMap(team1Strength, 3);
+    return scoreMap(team1Index, 3);
   } else {
-    return scoreMap(team2Strength, 3);
+    return scoreMap(team2Index, 3);
   }
 }
 
 var combineElementWithList = function(element, lst) {
   return map(function (x) { return [element, x]; }, lst);
-}
-
-var createTournament = function(teams) {
-  return teams.length === 2 ?
-    [[teams[0], teams[1]]] :
-    _.concat(
-      combineElementWithList(teams[0], _.tail(teams)),
-      createTournament(_.tail(teams))
-    );
 }
 
 var createTeamVectors = function(teams) {
@@ -163,9 +163,6 @@ var groups = [group_a, group_b, group_c, group_d, group_e, group_f, group_g, gro
 var groupVectors = map(function (x) { return createTeamVectors(x); }, groups);
 
 var cup = function () {
-  // Germany has a great third match
-  //condition(strengthCore('t03') >= 3);
-  
   // play all groups in the tournament
   var groupScores = map(function (x) { return playLeague(x); }, groupVectors);
 
@@ -178,13 +175,20 @@ var cup = function () {
   // play elimination rounds
   var winner = playKO(teamsKO);
 
+  condition(strengthCore('Germany') >= 3);
   // watch: winning team
-  //return teamFromVector(winner);
+  return teamFromVector(winner);
   
   // watch: core strength of one team
-  condition(teamFromVector(winner) == 'Germany');
-  return strengthCore('Germany');
+  //condition(teamFromVector(winner) == 'Germany');
+  //condition(strengthCore('Germany') > strengthCore('France'));
+  //return strengthCore('Germany');
+  return {
+    Germany: strengthCore('Germany'),
+    France: strengthCore('France')
+  };
+
 };
 
 var dist = Infer({method: 'MCMC', kernel: 'MH', samples: 10000}, function() { return cup(); });
-viz(dist);
+viz.auto(dist);
