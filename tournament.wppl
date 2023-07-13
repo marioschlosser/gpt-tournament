@@ -1,6 +1,6 @@
 // set the memoized core strength of each team, regardless of match played
 var strengthCore = mem(function (team) {
-  return Math.abs(gaussian(2.0, 1.0));
+  return Math.abs(gaussian({mu: 2.0, sigma: 1.0}));
 });
 
 // set the memoized strength of each team for a specific match index, modifying the core strength
@@ -8,7 +8,7 @@ var strengthCore = mem(function (team) {
 var strengthMatch = mem(function (team, match) {
   return team === 'none' ?
     0 :
-    strengthCore(team) + gaussian(0.5, 0.2);
+    strengthCore(team) + gaussian({mu: 0.5, sigma: 0.2});
 });
 
 // to evaluate the strength of a team vector, get the match strength of the team represented by the vector
