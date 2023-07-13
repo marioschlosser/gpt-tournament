@@ -131,12 +131,16 @@ var reverseEveryOther = function(items) {
   return mapIndexed(function(x,y) { x%2 == 0 ? y : _.reverse(y); }, items);
 }
 
-// dummy function for ko matches (only one winner)
-var playMatchKO = function(team1, team2) {
-  var team1Strength = teamStrength(team1, 1);
-  var team2Strength = teamStrength(team2, 1);
+// function to score k.o. matches (only one winner)
+var playMatchKO = function(teamVector1, teamVector2) {
+  var team1Strength = Math.min(Math.max(teamStrength(teamVector1, 0),0),10);
+  var team2Strength = Math.min(Math.max(teamStrength(teamVector2, 0),0),10);
   
-  return flip(Math.min(team1Strength / team2Strength, 1)) ? team1 : team2;
+  var goals = scoreMatch(team1Strength, team2Strength);
+  var team1Goals = goals[0];
+  var team2Goals = goals[1];
+
+  return team1Goals > team2Goals ? teamVector1 : (team2Goals > team1Goals ? teamVector2 : (flip() ? teamVector1 : teamVector2));
 }
 
 // play k.o. (elimination) round in a tournament
