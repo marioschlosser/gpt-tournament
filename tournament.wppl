@@ -4,6 +4,7 @@ var strengthCore = mem(function (team) {
 });
 
 // set the memoized strength of each team for a specific match index, modifying the core strength
+// we do this because we want to have match-specific team strength, so a different strength for a team's match 1, 2, 3 etc.
 var strengthMatch = mem(function (team, match) {
   return team === 'none' ?
     0 :
@@ -17,6 +18,7 @@ var teamStrength = function (teamVector, match) {
   );
 }
 
+// calculate the goals each team scores in a specific match, depending on each team's strength
 var scoreMatch = function (team1Strength, team2Strength) {
   var team1Goals = poisson({mu: team1Strength});
   var team2Goals = poisson({mu: team2Strength});
@@ -24,7 +26,7 @@ var scoreMatch = function (team1Strength, team2Strength) {
   return [team1Goals, team2Goals];
 }
 
-// calculate which team wins, winning/drawing teams get points in their position in the vector
+// calculate which team wins a group match, winning/drawing teams get points in their position in the vector
 var playMatch = function (teamVector1, teamVector2, match1, match2) {
   var team1Strength = Math.min(Math.max(teamStrength(teamVector1, match1),0),10);
   var team2Strength = Math.min(Math.max(teamStrength(teamVector2, match2),0),10);
@@ -33,14 +35,17 @@ var playMatch = function (teamVector1, teamVector2, match1, match2) {
   var goals = scoreMatch(team1Strength, team2Strength);
   var team1Goals = goals[0];
   var team2Goals = goals[1];
-  
+
+  // helper function to figure out where in the team's vector we store the team's scores
+  // e.g., ['ger','none','none','none'] => [3,0,0,0] if Germany wins
   var scoreMap = function(strength, points) {
     return map(function (x) { return x > 0 ? points : 0; }, strength);
   }
   
   var team1Index = map(function (y) { return strengthMatch(y, 1); }, teamVector1);
   var team2Index = map(function (y) { return strengthMatch(y, 1); }, teamVector2);
-  
+
+  // allocate the right amount of scores depending on match outcome
   if (team1Goals === team2Goals) {
     // draw: 1 point for each team (create each team score vector, then add vectors)
     return map2(
@@ -56,20 +61,20 @@ var playMatch = function (teamVector1, teamVector2, match1, match2) {
   }
 }
 
+// combine one element pair-wise with all elements in list
 var combineElementWithList = function(element, lst) {
   return map(function (x) { return [element, x]; }, lst);
 }
 
+// create team vector for all teams in list, and return list of team vectors, with each team on its own position in the vector
+// e.g., [ger,fra] => [['ger','none',],['none','fra']]
 var createTeamVectors = function(teams) {
   var createNones = function(x) { mapN(function() { return "none"; }, x); };
   var createVector = function(x,y) { return createNones(y).concat(x).concat(createNones(teams.length - y - 1)); };
   return map2(function(x,y) {return createVector(x,y); }, teams, _.range(0, teams.length));
 }
 
-var combineElementWithList = function(element, lst) {
-  return map(function (x) { return [element, x]; }, lst);
-}
-
+// creates list of all matches in the group stage of a tournament: all teams against each other, once
 var createTournament = function(teams) {
   return teams.length === 2 ?
     [[teams[0], teams[1]]] :
@@ -86,10 +91,13 @@ var triangle = function(n, m) {
 }
 
 // combines the triangle of matches with the triangle of match indexes (first match is 1)
+// we do this to count each team's match index (match 1, 2, 3 etc.)
 var combineWithIndex = function(matches, groupSize) {
   return zip(matches, triangle(1, groupSize));
 }
 
+// create all matches in a given group of teams, play them, accumulate the scores
+// returns ranked list of teams (or rather, team vectors), each with the points they've accumulated
 var playLeague = function(teams) {
   // calculate the results from all matches
   var results = 
@@ -131,7 +139,7 @@ var playMatchKO = function(team1, team2) {
   return flip(Math.min(team1Strength / team2Strength, 1)) ? team1 : team2;
 }
 
-// play ko round in a tournament
+// play k.o. (elimination) round in a tournament
 var playKO = function(teams) {
   // check if we are down to two teams
   return teams.length === 2 ?
