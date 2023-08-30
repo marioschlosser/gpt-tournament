@@ -8,7 +8,7 @@ var strengthCore = mem(function (team) {
 var strengthMatch = mem(function (team, match) {
   return team === 'none' ?
     0 :
-    Math.max(strengthCore(team) + gaussian({mu: 0.5, sigma: 0.2}),0.001);
+    Math.max(strengthCore(team) + gaussian({mu: 0, sigma: 0.5}), 0.001);
 });
 
 // to evaluate the strength of a team vector, get the match strength of the team represented by the vector
@@ -27,6 +27,7 @@ var scoreMatch = function (team1Strength, team2Strength) {
 }
 
 // calculate which team wins a group match, winning/drawing teams get points in their position in the vector
+// match1 and match2 are the index of the match played for that team
 var playMatch = function (teamVector1, teamVector2, match1, match2) {
   var team1Strength = Math.min(Math.max(teamStrength(teamVector1, match1),0),10);
   var team2Strength = Math.min(Math.max(teamStrength(teamVector2, match2),0),10);
@@ -132,25 +133,33 @@ var reverseEveryOther = function(items) {
 }
 
 // function to score k.o. matches (only one winner)
-var playMatchKO = function(teamVector1, teamVector2) {
-  var team1Strength = Math.min(Math.max(teamStrength(teamVector1, 0),0),10);
-  var team2Strength = Math.min(Math.max(teamStrength(teamVector2, 0),0),10);
+// match1 and match2 are the index of the match played for that team
+var playMatchKO = function(teamVector1, teamVector2, match1, match2) {
+  var team1Strength = Math.min(Math.max(teamStrength(teamVector1, match1),0),10);
+  var team2Strength = Math.min(Math.max(teamStrength(teamVector2, match2),0),10);
   
   var goals = scoreMatch(team1Strength, team2Strength);
   var team1Goals = goals[0];
   var team2Goals = goals[1];
 
+  // in case of draw, simply flip a coin to determine winner
   return team1Goals > team2Goals ? teamVector1 : (team2Goals > team1Goals ? teamVector2 : (flip() ? teamVector1 : teamVector2));
 }
 
 // play k.o. (elimination) round in a tournament
-var playKO = function(teams) {
+// match is the index of the first elimination round match, it just gets incremented from here
+var playKO = function(teams, match) {
   // check if we are down to two teams
-  return teams.length === 2 ?
+  if (teams.length === 2) {
     // play between the two teams, recursion is over
-    playMatchKO(teams[0], teams[1], 1, 1) :
+    // this is the first elimination round match, so match index is just match (= previously played # of games, before the ko round)
+    playMatchKO(teams[0], teams[1], match, match)
+  } else {
+    // the match index for the final match is the current match index + the matches to be played among all remaining teams (= base 2 logarithm of teams)
+    var lastMatchIndex = match + Math.log(teams.length) / Math.log(2) - 1;
     // split list in half, play elimination rounds on each sub-list, then let the winners play
-    playMatchKO(playKO(teams.slice(0, teams.length / 2)), playKO(teams.slice(teams.length / 2, teams.length)));
+    playMatchKO(playKO(teams.slice(0, teams.length / 2), match), playKO(teams.slice(teams.length / 2, teams.length), match), lastMatchIndex);
+  }
 }
 
 // extracts the team from a team vector
@@ -174,7 +183,13 @@ var groups = [group_a, group_b, group_c, group_d, group_e, group_f, group_g, gro
 // set up team vectors for all groups
 var groupVectors = map(function (x) { return createTeamVectors(x); }, groups);
 
-var cup = function () {
+var play_the_cup = function() {
+  // Germany stronger than others
+  condition(strengthCore('Germany') >= 3);
+
+  // Germany playing poorly in its first match
+  //condition(strengthMatch('Germany', 0) <= 2);
+  
   // play all groups in the tournament
   var groupScores = map(function (x) { return playLeague(x); }, groupVectors);
 
@@ -187,20 +202,19 @@ var cup = function () {
   // play elimination rounds
   var winner = playKO(teamsKO);
 
-  condition(strengthCore('Germany') >= 3);
-  // watch: winning team
-  return teamFromVector(winner);
-  
   // watch: core strength of one team
   //condition(teamFromVector(winner) == 'Germany');
   //condition(strengthCore('Germany') > strengthCore('France'));
+  
+  // watch: winning team
+  return teamFromVector(winner);
+  
   //return strengthCore('Germany');
   return {
     Germany: strengthCore('Germany'),
     France: strengthCore('France')
   };
+}
 
-};
-
-var dist = Infer({method: 'MCMC', kernel: 'MH', samples: 10000}, function() { return cup(); });
+var dist = Infer({method: 'MCMC', kernel: 'MH', samples: 50000}, function() { return play_the_cup(); });
 viz.auto(dist);
